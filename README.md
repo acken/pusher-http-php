@@ -48,6 +48,7 @@ A fourth parameter `$options` parameter can also be passed. The available option
 * `port` - the http port
 * `timeout` - the HTTP timeout
 * `encrypted` - quick option to use scheme of https and port 443.
+* `fireandforget` - when triggering do not wait for a reply from server
 
 For example, by default calls will be made over a non-encrypted connection. To change this to make calls over HTTPS use:
 

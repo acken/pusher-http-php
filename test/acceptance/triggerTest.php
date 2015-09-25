@@ -74,6 +74,15 @@
 		
 			$this->assertTrue( $response );
 		}
+
+        public function test_fire_and_forget_triggers_without_errors() {
+            $options = array( 'host' => PUSHERAPP_HOST );
+			$pusher = new Pusher(PUSHERAPP_AUTHKEY, PUSHERAPP_SECRET, PUSHERAPP_APPID, $options);
+			$pusher->set_logger( new TestLogger() );
+			
+			$ok = $pusher->trigger('test_channel', 'my_event', array( 'fireandforget' => 1 ));
+			$this->assertTrue($ok, 'Did not force true');
+        }
 	}
 
 ?>

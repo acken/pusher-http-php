@@ -57,6 +57,7 @@ class Pusher
 		'host' => 'api.pusherapp.com',
 		'port' => 80,
 		'timeout' => 30,
+        'fireandforget' => false,
 		'debug' => false
 	);
 	private $logger = null;
@@ -221,7 +222,7 @@ class Pusher
 	/**
 	 * Utility function used to create the curl object with common settings
 	 */
-	private function create_curl($s_url, $request_method = 'GET', $query_params = array() )
+	private function create_curl($s_url, $request_method = 'GET', $query_params = array(), $fireAndForget = false )
 	{
 		# Create the signed signature...
 		$signed_query = Pusher::build_auth_query_string(
@@ -237,22 +238,32 @@ class Pusher
 
 		$this->log( 'curl_init( ' . $full_url . ' )' );
 
-		// Create or reuse existing curl handle
-		static $ch;
-		if (null === $ch) {
-			$ch = curl_init();
-		}
+        if ($fireAndForget) {
+            $ch = curl_init();
+            if ( $ch === false )
+            {
+                throw new PusherException('Could not initialise cURL!');
+            }
+            curl_setopt( $ch, CURLOPT_FRESH_CONNECT, true );
+            curl_setopt( $ch, CURLOPT_TIMEOUT_MS, 1 );
+        } else {
+            // Create or reuse existing curl handle
+            static $ch;
+            if (null === $ch) {
+                $ch = curl_init();
+            }
 
-		if ( $ch === false )
-		{
-			throw new PusherException('Could not initialise cURL!');
-		}
-
-		# Set cURL opts and execute request
-		curl_setopt( $ch, CURLOPT_URL, $full_url );
-		curl_setopt( $ch, CURLOPT_HTTPHEADER, array ( "Content-Type: application/json", "Expect:" ) );
-		curl_setopt( $ch, CURLOPT_RETURNTRANSFER, 1 );
-		curl_setopt( $ch, CURLOPT_TIMEOUT, $this->settings['timeout'] );
+            if ( $ch === false )
+            {
+                throw new PusherException('Could not initialise cURL!');
+            } 
+        
+		    curl_setopt( $ch, CURLOPT_TIMEOUT, $this->settings['timeout'] );
+        }
+        # Set cURL opts and execute request
+        curl_setopt( $ch, CURLOPT_URL, $full_url );
+        curl_setopt( $ch, CURLOPT_HTTPHEADER, array ( "Content-Type: application/json", "Expect:" ) );
+        curl_setopt( $ch, CURLOPT_RETURNTRANSFER, 1 );
 
 		return $ch;
 	}
@@ -352,6 +363,7 @@ class Pusher
 		$this->validate_channels( $channels );
 		$this->validate_socket_id( $socket_id );
 
+        $fireAndForget = $this->settings['fireandforget'];
 		$query_params = array();
 
 		$s_url = $this->settings['base_path'] . '/events';
@@ -372,28 +384,33 @@ class Pusher
 
 		$query_params['body_md5'] = md5( $post_value );
 
-		$ch = $this->create_curl( $s_url, 'POST', $query_params );
+		$ch = $this->create_curl( $s_url, 'POST', $query_params, $fireAndForget );
 
 		$this->log( 'trigger POST: ' . $post_value );
 
 		curl_setopt( $ch, CURLOPT_POST, 1 );
 		curl_setopt( $ch, CURLOPT_POSTFIELDS, $post_value );
 
-		$response = $this->exec_curl( $ch );
+        if ($fireAndForget) {
+            curl_exec($ch);
+            curl_close($ch);
+            return true;
+        } else {
+            $response = $this->exec_curl( $ch );
 
-		if ( $response[ 'status' ] == 200 && $debug == false )
-		{
-			return true;
-		}
-		elseif ( $debug == true || $this->settings['debug'] == true )
-		{
-			return $response;
-		}
-		else
-		{
-			return false;
-		}
-
+            if ( $response[ 'status' ] == 200 && $debug == false )
+            {
+                return true;
+            }
+            elseif ( $debug == true || $this->settings['debug'] == true )
+            {
+                return $response;
+            }
+            else
+            {
+                return false;
+            }
+        }        
 	}
 
 	/**
